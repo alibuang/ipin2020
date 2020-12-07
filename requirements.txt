@@ -1,0 +1,6 @@
+zmq
+python-telegram-bot
+pyqt5
+pyautogui
+pynput
+keyboard

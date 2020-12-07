@@ -1,0 +1,44 @@
+;master_ip = 127.0.0.101
+
+;slave_ip = 127.0.0.102
+
+;master_lot = 10.0
+
+;slave_lot = 1.0
+
+;master_min_lot = 0.01
+
+;slave_min_lot = 0.01
+
+;master_slippage = 10
+
+;slave_slippage = 10
+
+;master_sl = 200
+
+;slave_sl = 200
+
+;master_suffix = 
+
+;slave_suffix = 
+
+;magic_number = 12345
+
+;token = 488376978:AAFvFovR-Zin9VXR-AhCs0RRXXP149s_rdk
+
+;chat_id = -1001300046908
+
+;risk = manual
+
+;arbitrage_open = 10
+
+;arbitrage_close = 10
+
+;scalping_rule = 3000
+
+;pip_step = 50
+
+;next_open_duration =88899
+
+;symbols = EURUSD,AUDUSD,GBPUSD,NZDUSD,USDJPY
+
