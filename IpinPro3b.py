@@ -453,7 +453,6 @@ class mywindow(QMainWindow):
         try:
             if self.isTest:
                 #Only FOR testing purpose
-                self.isTest= False
                 self.broker_master.get_test_price(self.broker_master.symbols, "MASTER")
                 self.broker_slave.get_test_price(self.broker_slave.symbols, "SLAVE")
                 print("\n{} \nMaster price \nask:{} \nbid:{} \nspread:{}".format(self.broker_master.symbols,
@@ -464,6 +463,7 @@ class mywindow(QMainWindow):
                                                                        self.broker_slave.ask,
                                                                        self.broker_slave.bid,
                                                                        self.broker_slave.spread))
+
             else:
                 self.broker_master.get_price(self.broker_master.symbols)
                 self.broker_slave.get_price(self.broker_slave.symbols)
@@ -512,6 +512,7 @@ class mywindow(QMainWindow):
                 new_symbol = symbol[:6].upper()
                 volume = str(self.cfg.slave_lot)
                 order_comment= self.cfg.slave_comment
+                trade_type=None
 
                 digit = master.digits[i] if master.digits[i] > slave.digits[i] else slave.digits[i]
 
@@ -531,28 +532,75 @@ class mywindow(QMainWindow):
                 if keyboard.is_pressed('ctrl + q'):
                     sys.exit()
 
-                if open_signal == DOWN and master.ask[i] != 0 and slave.ask[i] != 0 \
-                        and self.chk_open_valid(slave, slave.symbols[i], order_comment):
-                    self.send_telegram_msg(master.company, master.acctName, slave.company, slave.acctName
-                                           , self.cfg.symbols[i], self.gap_up[i], self.gap_down[i], 'SLAVE SELL')
+                if open_signal == DOWN and \
+                        master.ask[i] != 0 and \
+                        slave.ask[i] != 0  and \
+                        self.chk_open_valid(slave, slave.symbols[i], order_comment):
 
-                    stop_loss = str(
-                        self.get_stop_loss(SELL, slave.ask[i], slave.bid[i], slave.digits[i], self.cfg.slave_sl))
-                    take_profit = str(
-                        self.get_take_profit(SELL, slave.ask[i], slave.bid[i], slave.digits[i], self.cfg.slave_tp))
-                    auto_trade.place_open_position_mm(SELL,new_symbol,stop_loss,take_profit,volume,order_comment)
+                    trade_type = SELL
+                    self.send_telegram_msg(
+                        master.company,
+                        master.acctName,
+                        slave.company,
+                        slave.acctName,
+                        self.cfg.symbols[i],
+                        self.gap_up[i],
+                        self.gap_down[i],
+                        'SLAVE SELL')
 
-                elif open_signal == UP and master.ask[i] != 0 and slave.ask[i] != 0 \
-                        and self.chk_open_valid(slave, slave.symbols[i], order_comment):
+                elif open_signal == UP and \
+                        master.ask[i] != 0 and \
+                        slave.ask[i] != 0 and \
+                        self.chk_open_valid(slave, slave.symbols[i], order_comment):
 
-                    self.send_telegram_msg(master.company, master.acctName, slave.company, slave.acctName
-                                           , self.cfg.symbols[i], self.gap_up[i], self.gap_down[i], 'SLAVE BUY')
+                    trade_type = BUY
+                    self.send_telegram_msg(
+                        master.company,
+                        master.acctName,
+                        slave.company,
+                        slave.acctName,
+                        self.cfg.symbols[i],
+                        self.gap_up[i],
+                        self.gap_down[i],
+                        'SLAVE BUY')
 
-                    stop_loss = str(
-                        self.get_stop_loss(BUY, slave.ask[i], slave.bid[i], slave.digits[i], self.cfg.slave_sl))
-                    take_profit = str(
-                        self.get_take_profit(BUY, slave.ask[i], slave.bid[i], slave.digits[i], self.cfg.slave_tp))
-                    auto_trade.place_open_position_mm(BUY, new_symbol, stop_loss, take_profit, volume, order_comment)
+                if trade_type is not None:
+                    if self.isTest:
+                        slave_test= slave
+                        slave_test.get_price(slave_test.symbols)
+                        stop_loss = str(self.get_stop_loss(
+                            trade_type,
+                            slave_test.ask[i],
+                            slave_test.bid[i],
+                            slave_test.digits[i],
+                            self.cfg.slave_sl))
+                        take_profit = str(self.get_take_profit(
+                            trade_type,
+                            slave_test.ask[i],
+                            slave_test.bid[i],
+                            slave_test.digits[i],
+                            self.cfg.slave_tp))
+
+                    else:
+                        stop_loss = str(self.get_stop_loss(
+                            trade_type,
+                            slave.ask[i],
+                            slave.bid[i],
+                            slave.digits[i],
+                            self.cfg.slave_sl))
+                        take_profit = str(self.get_take_profit(
+                            trade_type,
+                            slave.ask[i],
+                            slave.bid[i],
+                            slave.digits[i],
+                            self.cfg.slave_tp))
+                    auto_trade.place_open_position_mm(trade_type,
+                                                      new_symbol,
+                                                      stop_loss,
+                                                      take_profit,
+                                                      volume,
+                                                      order_comment)
+                self.isTest = False
 
         except Exception as err:
             print("The exception in opennew_arbitposition: {}".format(err))

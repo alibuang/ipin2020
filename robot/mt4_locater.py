@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Tifia - My Laptop
+# Tifia - VPS Malaysia
 class mt4:
     
     def __init__(self):
