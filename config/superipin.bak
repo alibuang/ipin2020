@@ -2,7 +2,7 @@
 
 ;slave_ip = 127.0.0.102
 
-;master_lot = 10.0
+;master_lot = 0.01
 
 ;slave_lot = 0.1
 
@@ -16,21 +16,21 @@
 
 ;master_sl = 200
 
-;slave_sl = 200
+;slave_sl = 20
 
-;slave_tp = 300
+;slave_tp = 20
 
-;slave_comment = aliBuang123
+;slave_comment = test123
 
 ;master_suffix = 
 
-;slave_suffix = .
+;slave_suffix = 
 
 ;magic_number = 12345
 
 ;token = 488376978:AAFvFovR-Zin9VXR-AhCs0RRXXP149s_rdk
 
-;chat_id = -1001300046908
+;chat_id = -414427925
 
 ;risk = manual
 
@@ -38,13 +38,15 @@
 
 ;arbitrage_close = 10
 
-;scalping_rule = 180
+;scalping_rule = 60
 
 ;pip_step = 50
 
-;next_open_duration =180
+;next_open_duration = 180
+
+;profit_in_pip = 5
 
 ;weekend_off = 1
 
-;symbols = EURUSD,AUDUSD,GBPUSD,NZDUSD,USDJPY,USDCAD,EURJPY,GBPJPY
+;symbols = EURUSD,GBPUSD,NZDUSD,USDJPY,USDCAD,EURJPY,GBPJPY
 

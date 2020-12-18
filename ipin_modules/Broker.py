@@ -76,7 +76,7 @@ class Broker:
     def remote_send(self, socket, data):
         msg = None
         try:
-
+            # print("data '{}'".format(data))
             socket.send_string(data)
             socket.setsockopt(zmq.RCVTIMEO, 5000)
             msg = socket.recv_string()
@@ -91,6 +91,7 @@ class Broker:
         try:
             socket.setsockopt(zmq.RCVTIMEO, 5000)
             msg = socket.recv_string()
+            # print("remote_pull msg: '{}'".format(msg))
             # msg = socket.recv(flags=zmq.NOBLOCK)
 
         # except zmq.ZMQError as e:
@@ -98,6 +99,76 @@ class Broker:
             print("2.Waiting for PUSH from MetaTrader 4... '{}': {}".format(self.ip,e))
 
         return msg
+
+
+    def get_fx_details(self, ticket:int):
+
+        details ={
+            "idx":0,
+            "symbol":"",
+            "bid":0.0,
+            "ask":0.0,
+            "spread":0,
+            "digits":0,
+            "lastOpenTime":None,
+            "mt4ServerTime":None,
+            "op_type":9,
+            "profit":0.0
+        }
+
+        get_rates = "DETAILS" + "|" + str(ticket)
+
+        self.remote_send(self.req_socket, get_rates)
+        msg = self.remote_pull(self.pull_socket)
+
+        if msg is not None:
+            quote = msg.split('|')
+            code = quote[0]
+
+            if code == '404':
+                print("Error: {}".format(quote[1]))
+            else:
+                details["idx"]=int(float(quote[0]))
+                details["symbol"]=quote[1]
+                details["bid"]=float(quote[2])
+                details["ask"]=float(quote[3])
+                details["spread"]=int(float(quote[4]))
+                details["digits"]=int(float(quote[5]))
+                details["lastOpenTime"]=datetime.strptime(quote[6], '%Y.%m.%d %H:%M:%S')
+                details["mt4ServerTime"]=datetime.strptime(quote[7], '%Y.%m.%d %H:%M:%S')
+                details["op_type"]=int(float(quote[8]))
+                details["profit"]=float(quote[9])
+                details["op_price"] = float(quote[10])
+
+        return details
+
+    def get_master_details(self, symbol:str):
+
+        details ={
+            "bid":0.0,
+            "ask":0.0,
+            "spread":0,
+            "digits":0,
+        }
+
+        get_rates = "DETAILS_MASTER" + "|" + symbol
+
+        self.remote_send(self.req_socket, get_rates)
+        msg = self.remote_pull(self.pull_socket)
+
+        if msg is not None:
+            quote = msg.split('|')
+            code = quote[0]
+
+            if code == '404':
+                print("Error: {}".format(quote[1]))
+            else:
+                details["bid"]=float(quote[0])
+                details["ask"]=float(quote[1])
+                details["spread"]=int(float(quote[2]))
+                details["digits"]=int(float(quote[3]))
+
+        return details
 
     def get_price(self, symbols):
         # print(symbols)
@@ -140,6 +211,36 @@ class Broker:
 
             # print self.bid, self.ask, self.avg_price
 
+    def get_fx_price(self, symbol):
+
+        get_rates = "RATE_FX" + '|' + symbol
+
+        self.remote_send(self.req_socket, get_rates)
+        msg = self.remote_pull(self.pull_socket)
+
+        price = {
+            "symbol": "",
+            "timestamp": None,
+            "bid": 0.0,
+            "ask": 0.0,
+            "spread": 0,
+            "digits": 0,
+            "average":0.0
+        }
+
+        # print (msg)
+        if msg is not None:
+            quote = msg.split('|')
+            price["timestamp"] = datetime.strptime(quote[0], '%Y.%m.%d %H:%M:%S')
+            price["symbol"]=symbol
+            price["bid"] = float(quote[1])
+            price["ask"] = float(quote[2])
+            price["spread"] = int(float(quote[3]))
+            price["digits"] = int(float(quote[4]))
+            price["average"] = round((price["bid"] + price["ask"]) / 2, price["digits"])
+
+            return price
+
     def get_test_price(self, symbols, master_slave):
         # print(symbols)
 
@@ -181,6 +282,50 @@ class Broker:
 
             # print self.bid, self.ask, self.avg_price
 
+    def get_trade_count(self, symbol:str,comment:str):
+
+        trade_count = {
+            "buy":0,
+            "sell":0
+        }
+        req_count = "COUNT_TRADE|" + symbol +"|"+ comment
+
+        self.remote_send(self.req_socket, req_count)
+        msg = self.remote_pull(self.pull_socket)
+
+        if msg is not None:
+            quote = msg.split('|')
+            trade_count['buy']= int(float(quote[0]))
+            trade_count['sell'] = int(float(quote[1]))
+
+        return trade_count
+
+    def get_total_count(self, comment:str):
+
+        trade = {
+            "total":0,
+            "ticket": [],
+        }
+
+        total_count =0
+        ticket = []
+        req_count = "TOTAL_COUNT|" + comment
+
+        self.remote_send(self.req_socket, req_count)
+        msg = self.remote_pull(self.pull_socket)
+
+        if msg is not None:
+            quote = msg.split('|')
+            code = quote[0]
+
+            if code == '404':
+                print("Error: {}".format(quote[1]))
+            else:
+                trade["total"]= int(float(quote[0]))
+                for t in range(1, len(quote)):
+                    trade["ticket"].append(int(float(quote[t])))
+
+        return trade
 
     def get_count(self, symbols):
 
@@ -447,6 +592,13 @@ class Broker:
             str_symb = str_symb + '|' + s
 
         init_symbols = 'INITIALIZE' + str_symb
+        print('Initialize MT4 Symbols ...')
+
+        self.remote_send(self.req_socket, init_symbols)
+
+    def init_fx_symbol(self, symbol):
+
+        init_symbols = 'INITIALIZE' + "|" + symbol
         print('Initialize MT4 Symbols ...')
 
         self.remote_send(self.req_socket, init_symbols)

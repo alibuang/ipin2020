@@ -19,7 +19,7 @@
 #    then the position will be closed.
 
 from ipin_modules.Broker import Broker
-from robot.auto_mt4 import Auto_Robot
+from robot.auto_mt5 import Auto_Robot
 from ipin_modules.ipinPro_ui import Ui_MainWindow  # importing our generated file
 from ipin_modules.setting_ui import Ui_SettingWindow
 from PyQt5.QtCore import *
@@ -75,6 +75,7 @@ class Cfg_Data:
         self.slave_suffix = ""
         self.open_time_gap = 0
         self.weekend_off = 0
+        self.profit_in_pip= 0
 
 class mywindow(QMainWindow):
 
@@ -193,7 +194,8 @@ class mywindow(QMainWindow):
         save.save_config(';arbitrage_close = ' + self.setting_screen.setting.arb_close.text())
         save.save_config(';scalping_rule = ' + self.setting_screen.setting.scalping_rule.text())
         save.save_config(';pip_step = ' + self.setting_screen.setting.pip_step.text())
-        save.save_config(';next_open_duration =' + self.setting_screen.setting.next_open_duration.text())
+        save.save_config(';next_open_duration = ' + self.setting_screen.setting.next_open_duration.text())
+        save.save_config(';profit_in_pip = ' + self.setting_screen.setting.profitInPIP.text())
 
         if self.setting_screen.setting.weekendOFFCheckBox.isChecked():
             save.save_config(';weekend_off = 1')
@@ -262,6 +264,7 @@ class mywindow(QMainWindow):
         self.cfg.master_suffix = cfg_read.m_suffix
         self.cfg.slave_suffix = cfg_read.s_suffix
         self.cfg.open_time_gap = cfg_read.open_time_gap
+        self.cfg.profit_in_pip = cfg_read.profit_in_pip
 
     def display_cfg(self):
 
@@ -277,6 +280,7 @@ class mywindow(QMainWindow):
         self.setting_screen.setting.pip_step.setText(str(self.cfg.pip_step))
         self.setting_screen.setting.scalping_rule.setText(str(self.cfg.scalping_rule))
         self.setting_screen.setting.next_open_duration.setText(str(self.cfg.open_time_gap))
+        self.setting_screen.setting.profitInPIP.setText(str(self.cfg.profit_in_pip))
         if self.cfg.weekend_off == 1:
             self.setting_screen.setting.weekendOFFCheckBox.setChecked(True)
         else:
@@ -332,53 +336,79 @@ class mywindow(QMainWindow):
         self.ui.pbTestExit.clicked.connect(self.close)
         self.ui.pbDebug.clicked.connect(self.debug)
 
-        self.ui.pbTestOpen.setDisabled(True)
+        self.ui.pbTestOpen.setEnabled(True)
         self.ui.pbStop.setDisabled(True)
+
+    def btn_TestOpen_pressed(self):
+
+        isTestOpen=True
+
+        if isTestOpen:
+            self.isTest = True
+            self.btn_Run_pressed()
+
+        else:
+            auto_close = Auto_Robot()
+
+            try:
+
+                self.read_cfg_file()
+                master = Broker('tcp://' + self.cfg.master_ip, self.cfg.magic_number, \
+                                self.cfg.symbols, self.cfg.master_suffix)
+                slave = Broker('tcp://' + self.cfg.slave_ip, self.cfg.magic_number, \
+                                           self.cfg.symbols, self.cfg.slave_suffix)
+                slave.get_acct_info()
+                print(slave.acctName)
+                trade = slave.get_total_count(self.cfg.slave_comment)
+                print("total count : {}".format(trade["total"]))
+
+                for ticket in trade["ticket"]:
+
+                    trade_details = slave.get_fx_details(ticket)
+                    print("symbol:{} ,idx:{} ticket: {}".format(trade_details['symbol'], trade_details['idx'], ticket))
+
+                    master_detail = slave.get_master_details(trade_details['symbol'])
+                    # print("master details: {}".format(master_detail))
+
+                    digit = master_detail['digits'] if master_detail['digits'] > trade_details['digits'] else trade_details['digits']
+
+                    gap_up = round(pow(10, digit) * (trade_details['ask'] - master_detail['bid']))
+                    gap_down = round(pow(10, digit) * (master_detail['ask'] - trade_details['bid']))
+
+                    close_signal = self.get_close_signal(trade_details['op_type'], gap_up, gap_down, self.cfg.arb_close)
+                    close_time_valid = self.chk_closeTimeValid(trade_details['lastOpenTime'], trade_details['mt4ServerTime'])
+
+                    if close_signal and close_time_valid:
+                        print("close trade ticket {} , index '{}'".format(ticket,trade_details['idx']))
+                        auto_close.close_order(trade_details['idx'])
+                        sleep(1)
+
+            except Exception as err_msg:
+                print('Error : {}'.format(err_msg))
 
     def debug(self):
 
-        self.isTest= True
-        self.btn_Run_pressed()
+        try:
+            print("Debug ..")
+            slave = Broker('tcp://' + self.cfg.slave_ip,
+                           self.cfg.magic_number,
+                           self.cfg.symbols,
+                           self.cfg.slave_suffix)
 
-        # try:
-        #
-        #     self.read_cfg_file()
-        #     master = Broker('tcp://' + self.cfg.master_ip, self.cfg.magic_number, \
-        #                                 self.cfg.symbols, self.cfg.master_suffix)
-        #     slave = Broker('tcp://' + self.cfg.slave_ip, self.cfg.magic_number, \
-        #                                self.cfg.symbols, self.cfg.slave_suffix)
-        #
-        #     # slave.get_price(slave.symbols)
-        #     master.get_test_price(master.symbols, "MASTER")
-        #     slave.get_test_price(slave.symbols, "SLAVE")
-        #     print("{} Master price ask:{} bid:{}".format(master.symbols, master.ask, master.bid))
-        #     print("{} Slave  price ask:{} bid:{}".format(slave.symbols,  slave.ask,  slave.bid))
+            slave.get_acct_info()
+            print("Acct Name : {}".format(slave.acctName))
+            trade = slave.get_total_count(self.cfg.slave_comment)
 
-            # for symbol in symbols:
-            #
-            #     # print('symbol is {}'.format(symbol))
-            #     last_open = master.get_lastprice_bysymbol(symbol, BUY)
-            #     print('{} : {}'.format(symbol, last_open))
+            for ticket in trade['ticket']:
+                open_pos =slave.get_fx_details(ticket)
+                print("Profit $ for {} : {}".format(ticket,open_pos['profit']))
+                print("Profit in pip achieved? : {}".format(self.is_pipProfit(open_pos)))
+                print(open_pos)
 
-        # except Exception as err_msg:
-        #     print('Error : {}'.format(err_msg))
+            print("End of debug ...")
 
-    def btn_TestOpen_pressed(self):
-        # slave.send_order(BUY, slave.symbols[i], slave.ask[i], slave.lots, slave.SLIP, slave.stop_loss, mt4_comments)
-        master = self.broker_master
-        slave = self.broker_slave
-
-        for i in range(len(self.cfg.symbols)):
-
-            magic_number = self.generate_magicno()
-
-            master.send_order2(order_type= BUY, symbol=master.symbols[i], price=master.ask[i], lot=self.cfg.master_lot,\
-                               slip=self.cfg.master_slip, magic_number=magic_number, comments=str(magic_number) )
-            slave.send_order2(order_type= SELL, symbol=slave.symbols[i], price=slave.bid[i], lot=self.cfg.slave_lot, \
-                               slip=self.cfg.slave_slip, magic_number=magic_number, comments=str(magic_number))
-
-            # master.send_order(BUY, master.symbols[i], master.ask[i],self.cfg.master_lot, self.cfg.master_slip)
-            # slave.send_order(SELL, slave.symbols[i], slave.bid[i], self.cfg.slave_lot, self.cfg.slave_slip)
+        except Exception as err_msg:
+            print('Error : {}'.format(err_msg))
 
     def btn_Close_pressed(self):
 
@@ -400,22 +430,23 @@ class mywindow(QMainWindow):
 
     def btn_Reset_pressed(self):
         self.ui.pbRun.setEnabled(True)
-        self.ui.pbStop.setEnabled(True)
+        self.ui.pbStop.setDisabled(True)
         self.ui.tableWidget.clearContents()
-        self.ui.tw_Open_Position.clearContents()
+        # self.ui.tw_Open_Position.clearContents()
         self.ui.lblBrokerAName.clear()
         self.ui.lblBrokerBName.clear()
 
     def btn_Stop_pressed(self):
         self.ui.pbRun.setEnabled(True)
         self.ui.pbStop.setDisabled(True)
+        self.ui.pbTestOpen.setEnabled(True)
         self.timer.stop()
 
     def btn_Run_pressed(self):
 
         self.ui.pbRun.setDisabled(True)
         self.ui.pbStop.setEnabled(True)
-        self.ui.pbTestOpen.setEnabled(True)
+        self.ui.pbTestOpen.setDisabled(True)
 
         self.read_cfg_file()
         self.gap_down = []
@@ -439,18 +470,19 @@ class mywindow(QMainWindow):
         self.send_telegram_robotStart(self.broker_master.company, self.broker_master.acctName, \
                                       self.broker_slave.company, self.broker_slave.acctName)
 
-        self.broker_master.init_symbol()
-        self.broker_slave.init_symbol()
-
         if self.isTest:
             self.test_arbitrage()
         else:
+            self.broker_master.init_symbol()
+            self.broker_slave.init_symbol()
             self.timer.timeout.connect(self.test_arbitrage)
             self.timer.start(900)
 
     def test_arbitrage(self):
 
         try:
+            self.manage_closearbit(self.broker_master, self.broker_slave)
+
             if self.isTest:
                 #Only FOR testing purpose
                 self.broker_master.get_test_price(self.broker_master.symbols, "MASTER")
@@ -463,44 +495,76 @@ class mywindow(QMainWindow):
                                                                        self.broker_slave.ask,
                                                                        self.broker_slave.bid,
                                                                        self.broker_slave.spread))
-
             else:
                 self.broker_master.get_price(self.broker_master.symbols)
                 self.broker_slave.get_price(self.broker_slave.symbols)
 
-            # to get trade count by symbol
-            self.broker_master.get_order_status(self.broker_master.symbols)
-            self.broker_slave.get_order_status(self.broker_slave.symbols)
-
             self.opennew_arbitposition(self.broker_master, self.broker_slave)
-
             self.update_table()
 
         except Exception as err:
             print("The exception in test_arbitrage: {}".format(err))
 
-    def manage_closearbit(self, master, slave):
+    def manage_closearbit(self, master:Broker, slave:Broker):
 
-        magic_numbers = master.get_magnums()
+        auto_close = Auto_Robot()
 
-        if len(magic_numbers) == 0:
-            return
+        try:
 
-        for i in range(len(master.symbols)):
+            trade = slave.get_total_count(self.cfg.slave_comment)
+            # print("total count : {}".format(trade["total"]))
 
-            digit = master.digits[i] if master.digits[i] > slave.digits[i] else slave.digits[i]
+            for ticket in trade["ticket"]:
 
-            # calculate gap between brokers
-            self.gap_up[i] = pow(10, digit) * (master.ask[i] - slave.bid[i])
-            self.gap_down[i] = pow(10, digit) * (slave.ask[i] - master.bid[i])
+                open_trade = slave.get_fx_details(ticket)
+                print("symbol:{} ,idx:{} ticket: {}".format(open_trade['symbol'], open_trade['idx'], ticket))
 
-        close_signal = self.get_close_signal(self.gap_up[i], self.gap_down[i], self.cfg.arb_close)
+                master_detail = master.get_master_details(open_trade['symbol'])
+                # print("master details: {}".format(master_detail))
 
-        for magic_number in magic_numbers:
+                digit = master_detail['digits'] if master_detail['digits'] > open_trade['digits'] else open_trade[
+                    'digits']
 
-            if self.chk_closeValid(master, magic_number) and close_signal :
-                master.order_close2(magic_number=magic_number)
-                slave.order_close2(magic_number=magic_number)
+                gap_up = round(pow(10, digit) * (open_trade['ask'] - master_detail['bid']))
+                gap_down = round(pow(10, digit) * (master_detail['ask'] - open_trade['bid']))
+
+                close_signal = self.get_close_signal(open_trade['op_type'], gap_up, gap_down, self.cfg.arb_close)
+                close_time_valid = self.chk_closeTimeValid(open_trade['lastOpenTime'],
+                                                           open_trade['mt4ServerTime'])
+
+                if close_signal and close_time_valid and self.is_pipProfit(open_trade):
+                    print("close trade ticket {} , index '{}'".format(ticket, open_trade['idx']))
+                    auto_close.close_order(open_trade['idx'])
+                    sleep(1)
+
+        except Exception as err_msg:
+            print('Error : {}'.format(err_msg))
+
+    def is_pipProfit(self, open_trade):
+
+        is_profit_achieved= False
+        profit= 0.0
+
+        trade_type= open_trade['op_type']
+        bid= open_trade['bid']
+        ask= open_trade['ask']
+        digits= open_trade['digits']
+        open_price = open_trade['op_price']
+
+        if trade_type == BUY:
+            profit = round((bid - open_price) * pow(10,digits), digits)
+        elif trade_type == SELL:
+            profit = round((open_price - ask) * pow(10,digits),digits)
+        else:
+            print("Trade type not reconized ...")
+
+        print("Profit in pip: {}".format(profit))
+
+        if profit >= self.cfg.profit_in_pip:
+            is_profit_achieved = True
+
+        return is_profit_achieved
+
 
     def opennew_arbitposition(self, master, slave):
 
@@ -508,8 +572,6 @@ class mywindow(QMainWindow):
 
         try:
             for i in range(len(self.cfg.symbols)):
-                symbol = slave.symbols[i]
-                new_symbol = symbol[:6].upper()
                 volume = str(self.cfg.slave_lot)
                 order_comment= self.cfg.slave_comment
                 trade_type=None
@@ -519,55 +581,31 @@ class mywindow(QMainWindow):
                 # calculate gap between brokers
                 self.gap_up[i] = pow(10, digit) * (slave.ask[i] - master.bid[i])
                 self.gap_down[i] = pow(10, digit) * (master.ask[i] - slave.bid[i])
-                # print ('\n{} : gap up is {} and gap down is {}'.format(self.cfg.symbols[i],
-                #                                                      self.gap_up[i],
-                #                                                      self.gap_down[i]))
 
                 # Open position management
                 open_signal = self.get_open_signal(self.gap_up[i], self.gap_down[i], self.cfg.arb_open)
-                # print('\nOpen Signal for symbol {} is {}'.format(self.cfg.symbols[i],open_signal))
-                #
-                # print("\ncheck for open valid : {}".format(self.chk_open_valid(slave, slave.symbols[i], order_comment)))
-
-                if keyboard.is_pressed('ctrl + q'):
-                    sys.exit()
 
                 if open_signal == DOWN and \
                         master.ask[i] != 0 and \
                         slave.ask[i] != 0  and \
+                        self.is_next_position(slave, slave.symbols[i], open_signal, self.gap_up[i],
+                                              self.gap_down[i]) and \
                         self.chk_open_valid(slave, slave.symbols[i], order_comment):
-
                     trade_type = SELL
-                    self.send_telegram_msg(
-                        master.company,
-                        master.acctName,
-                        slave.company,
-                        slave.acctName,
-                        self.cfg.symbols[i],
-                        self.gap_up[i],
-                        self.gap_down[i],
-                        'SLAVE SELL')
 
                 elif open_signal == UP and \
                         master.ask[i] != 0 and \
                         slave.ask[i] != 0 and \
+                        self.is_next_position(slave, slave.symbols[i], open_signal, self.gap_up[i],
+                                              self.gap_down[i]) and \
                         self.chk_open_valid(slave, slave.symbols[i], order_comment):
-
                     trade_type = BUY
-                    self.send_telegram_msg(
-                        master.company,
-                        master.acctName,
-                        slave.company,
-                        slave.acctName,
-                        self.cfg.symbols[i],
-                        self.gap_up[i],
-                        self.gap_down[i],
-                        'SLAVE BUY')
 
                 if trade_type is not None:
                     if self.isTest:
                         slave_test= slave
                         slave_test.get_price(slave_test.symbols)
+                        print("isTest is :",self.isTest)
                         stop_loss = str(self.get_stop_loss(
                             trade_type,
                             slave_test.ask[i],
@@ -582,6 +620,17 @@ class mywindow(QMainWindow):
                             self.cfg.slave_tp))
 
                     else:
+
+                        trade_comment = 'SLAVE BUY' if trade_type == BUY else 'SLAVE SELL'
+                        self.send_telegram_msg(
+                            master.company,
+                            master.acctName,
+                            slave.company,
+                            slave.acctName,
+                            self.cfg.symbols[i],
+                            self.gap_up[i],
+                            self.gap_down[i],
+                            trade_comment)
                         stop_loss = str(self.get_stop_loss(
                             trade_type,
                             slave.ask[i],
@@ -595,23 +644,48 @@ class mywindow(QMainWindow):
                             slave.digits[i],
                             self.cfg.slave_tp))
                     auto_trade.place_open_position_mm(trade_type,
-                                                      new_symbol,
+                                                      i,
                                                       stop_loss,
                                                       take_profit,
                                                       volume,
                                                       order_comment)
+            if self.isTest:
                 self.isTest = False
+                print("Test Mode completed ...")
 
         except Exception as err:
             print("The exception in opennew_arbitposition: {}".format(err))
+
+    def is_next_position(self, slave:Broker, symbol:str, signal:int, gap_up:float, gap_down:float):
+
+        #print("Get the status whether nex position is allowed ...")
+
+        #get pip_step from cfg
+        pip_step = self.cfg.pip_step
+        comment = self.cfg.slave_comment
+        arbit_open = self.cfg.arb_open
+        next_step = {}
+
+        #get trade count from MT5 based on the comments
+        trade_count = slave.get_trade_count(symbol, comment)
+        next_step['buy'] = arbit_open + (trade_count['buy'] * pip_step)
+        next_step['sell'] = arbit_open + (trade_count['sell'] * pip_step)
+
+        #calc the allowed open price for BUY and SELL
+        if trade_count['buy'] == 0 and trade_count['sell'] == 0:
+            return True
+        else:
+            if signal == UP and gap_up < -next_step['buy']: return True
+            elif signal == DOWN and gap_down < -next_step['sell']: return True
+            else: return False
 
     def get_stop_loss(self, trade_type:int, ask:float, bid:float, digits:int, sl_pip:int):
 
         try:
             if(trade_type == BUY):
-                return round(ask - (sl_pip / math.pow(10, digits)), digits-1)
+                return round(ask - (sl_pip / math.pow(10, digits)), digits)
             elif(trade_type == SELL):
-                return round(bid + (sl_pip / math.pow(10, digits)), digits-1)
+                return round(bid + (sl_pip / math.pow(10, digits)), digits)
             else:
                 return 0
 
@@ -622,9 +696,9 @@ class mywindow(QMainWindow):
 
         try:
             if (trade_type == BUY):
-                return round(ask + (tp_pip / math.pow(10, digits)), digits-1)
+                return round(ask + (tp_pip / math.pow(10, digits)), digits)
             elif (trade_type == SELL):
-                return round(bid - (tp_pip / math.pow(10, digits)), digits-1)
+                return round(bid - (tp_pip / math.pow(10, digits)), digits)
             else:
                 return 0
 
@@ -686,14 +760,8 @@ class mywindow(QMainWindow):
 
         self.ui.tableWidget.clearContents()
 
-        # print('up to update table')
-
-
         pro_fmt = "{0:0." + str(2) + "f}"
         gap_fmt = '{:d}'
-
-        # print('up to update table 2')
-
 
         for i in range(len(self.cfg.symbols)):
 
@@ -747,11 +815,14 @@ class mywindow(QMainWindow):
 
         self.ui.tw_Open_Position.repaint()
 
-    def get_close_signal(self, gap_up, gap_down, arb_close):
+    def get_close_signal(self, trade_type:int,  gap_up, gap_down, arb_close):
 
-        close = True if (gap_up > - arb_close) and (gap_down > - arb_close) else False
-
-        return close
+        if trade_type == BUY and gap_up > - arb_close:
+            return True
+        elif trade_type == SELL and gap_down > -arb_close:
+            return True
+        else:
+            return False
 
     def get_open_signal(self, gap_up, gap_down, arb_open):
 
@@ -776,6 +847,16 @@ class mywindow(QMainWindow):
         closeValid = False
 
         openTime, mt4ServerTime = broker.get_opentime_bymagnum(magic_number)
+        allowedCloseTime = openTime + dt.timedelta(seconds= self.cfg.scalping_rule)
+
+        if mt4ServerTime > allowedCloseTime:
+                closeValid=True
+
+        return closeValid
+
+    def chk_closeTimeValid(self, openTime, mt4ServerTime):
+        closeValid = False
+
         allowedCloseTime = openTime + dt.timedelta(seconds= self.cfg.scalping_rule)
 
         if mt4ServerTime > allowedCloseTime:

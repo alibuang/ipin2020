@@ -136,6 +136,9 @@ class config:
                     elif cfg_data[0] == 'slave_sl':
                         self.slave_sl = int(float(cfg_data[1]))
 
+                    elif cfg_data[0] == 'profit_in_pip':
+                        self.profit_in_pip = int(float(cfg_data[1]))
+
                     elif cfg_data[0] == 'slave_tp':
                         self.slave_tp = int(float(cfg_data[1]))
 

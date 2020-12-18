@@ -7,12 +7,6 @@
 # WARNING! All changes made in this file will be lost!
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-import PyQt5
-if hasattr(QtCore.Qt, 'AA_EnableHighDpiScaling'):
-    PyQt5.QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
-
-if hasattr(QtCore.Qt, 'AA_UseHighDpiPixmaps'):
-    PyQt5.QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -275,7 +269,7 @@ class Ui_MainWindow(object):
         self.pbStop.setText(_translate("MainWindow", "STOP"))
         self.pbRun.setText(_translate("MainWindow", "RUN"))
         self.pbTestClose.setText(_translate("MainWindow", "CLOSE ALL"))
-        self.pbTestOpen.setText(_translate("MainWindow", "CALIB."))
+        self.pbTestOpen.setText(_translate("MainWindow", "OPEN ALL"))
         self.pbReset.setText(_translate("MainWindow", "RESET"))
         self.pbDebug.setText(_translate("MainWindow", "DEBUG"))
         self.menuFile.setTitle(_translate("MainWindow", "File"))

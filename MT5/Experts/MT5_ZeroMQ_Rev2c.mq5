@@ -13,7 +13,7 @@
 
 string PROJECT_NAME = "Ali ZMQ";
 input string ZEROMQ_PROTOCOL = "tcp";
-input string HOSTNAME = "127.0.0.101";
+input string HOSTNAME = "127.0.0.102";
 input int REP_PORT = 5555;
 input int PUSH_PORT = 5556;
 input int MILLISECOND_TIMER = 1;  // 1 millisecond
@@ -22,6 +22,12 @@ input string t0 = "--- Trading Parameters ---";
 input int MagicNumber = 123456;
 input int MaximumOrders = 1;
 input double MaximumLotSize = 0.01;
+
+input string t1 = "--- Testing Parameters ---";
+input double Master_Ask = 1.00031;
+input double Master_Bid = 1.00000;
+input double Slave_Ask = 1.00111;
+input double Slave_Bid = 1.00070;
 
 // CREATE ZeroMQ Context
 Context context(PROJECT_NAME);
@@ -135,13 +141,13 @@ ZmqMsg MessageHandler(ZmqMsg &request) {
 //@debug-      ParseZmqMessage(dataStrDebug, components);
       
       // Interpret data
-      InterpretZmqMessage(&pushSocket, components);
+      InterpretZmqMessage(pushSocket, components);
       
       // Construct response
-      data2send = StringSubstr(dataStr,0,27);
-      ZmqMsg ret(StringFormat("[SERVER]: %s", data2send));
+      //data2send = StringSubstr(dataStr,0,27);
+     // ZmqMsg ret(StringFormat("[SERVER]: %s", data2send));
      
-      reply = ret;
+     // reply = ret;
       
    }
    else {
@@ -155,14 +161,14 @@ ZmqMsg MessageHandler(ZmqMsg &request) {
 void InterpretZmqMessage(Socket &pSocket, string& compArray[]) {
 
    //Print("ZMQ: Interpreting Message..");
-   //Print("Okay 5");   
-   string broker="", comments="", symbol[],retStr[];
+  
+   string broker="", comments="", symbol[],retStr[], masterSlave="", orderComment="", fx_symbol="", keyword="";
    int switch_action = 0, magic_number = 0,  order_type = 9, err_cd=0, stop_loss=0, take_profit=0, slip=0, retCount[], shift;
    ENUM_TIMEFRAMES timeframe;
    double open_price=0.0, lot=0.0;
    datetime timestamp = TimeLocal(), tm;
    string time_str = TimeToString(timestamp,TIME_DATE|TIME_SECONDS);
-   int magNumRead[];
+   int magNumRead[], trade_ticket=0;
    string symbolsRead;
    
    if(compArray[0] == "TRADE" && compArray[1] == "OPEN"){
@@ -242,8 +248,8 @@ void InterpretZmqMessage(Socket &pSocket, string& compArray[]) {
     }
     else if(compArray[0] == "INITIALIZE"){
          switch_action = 11;
-         
-         ArrayResize(symbol,ArraySize(compArray)-1);
+                 
+         ArrayResize(symbol,ArraySize(compArray)-1, ArraySize(compArray)-1);
          for(int j=0; j < ArraySize(compArray)-1;j++)
             symbol[j] = compArray[j+1];
     }    
@@ -255,55 +261,53 @@ void InterpretZmqMessage(Socket &pSocket, string& compArray[]) {
          ArrayResize(symbol,ArraySize(compArray)-3);
          for(int j=0; j < ArraySize(compArray)-3;j++)
             symbol[j] = compArray[j+3];
-    
     }
-   
-   else if(compArray[0] == "PROFIT"){
-         switch_action = 13;
-         magic_number = StringToInteger(compArray[1]);
-         
-         ArrayResize(symbol,ArraySize(compArray)-2);
-         for(int j=0; j < ArraySize(compArray)-2;j++)
-            symbol[j] = compArray[j+2];
-               
-    }
-
-   else if(compArray[0] == "MAGIC_NUMBER"){
+    else if(compArray[0] == "TESTRATES"){
+      switch_action = 13;
+      masterSlave = compArray[1];
+      
+      ArrayResize(symbol,ArraySize(compArray)-2);
+      for(int j=0; j < ArraySize(compArray)-2;j++)
+         symbol[j] = compArray[j+2];
+            
+      }
+    else if(compArray[0] == "LASTOPENTIME_SYMBOL"){
          switch_action = 14;
-                      
-    }
-    
-    else if(compArray[0] == "PROFIT2"){
-         switch_action = 15;
-                  
-         ArrayResize(magNumRead,ArraySize(compArray)-1);
-         for(int j=0; j < ArraySize(compArray)-1;j++)
-            magNumRead[j] = compArray[j+1];
-               
-    }
-    
-     else if(compArray[0] == "CLOSE2"){
-         switch_action = 16;
-         magic_number = compArray[1];
-    }
-
-    else if(compArray[0] == "SYMBOLS"){
-         switch_action = 17;
          
-         ArrayResize(magNumRead,ArraySize(compArray)-1);
-         for(int j=0; j < ArraySize(compArray)-1;j++)
-            magNumRead[j] = compArray[j+1];
+         orderComment= compArray[2];
          
-    }
-    else if(compArray[0] == "LASTOPENTIME_MAGIC"){
-         switch_action = 18;
-         magic_number = compArray[1];
+         ArrayResize(symbol,1);
+         symbol[0] = compArray[1];
+    } 
+    else if(compArray[0] == "RATE_FX"){
+      
+      switch_action = 15;
+      fx_symbol = compArray[1];
+      
+      }
+    else if(compArray[0] == "COUNT_TRADE"){
+      switch_action = 16;
+      fx_symbol = compArray[1];
+      orderComment = compArray[2];
+      
+      }
+      else if(compArray[0] == "TOTAL_COUNT"){
+      switch_action = 17;
+      orderComment = compArray[1];
      }
-     else if(compArray[0] == "LASTOPENTIME_SYMBOL"){
-         switch_action = 19;
-         symbolsRead = compArray[1];
-         }
-   
+     else if(compArray[0] == "DETAILS"){
+      switch_action = 18;
+      trade_ticket = compArray[1];
+     }
+     else if(compArray[0] == "DETAILS_MASTER"){
+      switch_action = 19;
+      fx_symbol = compArray[1];
+     }
+     else {
+      switch_action = 99;
+      keyword = compArray[0];
+     }
+     
    
    
    string ret = "";
@@ -479,8 +483,6 @@ void InterpretZmqMessage(Socket &pSocket, string& compArray[]) {
             
       case 11:
             
-            //PrintFormat("Okay HERE ----------> ");
-            //break;
             get_Symbols(symbol);
             break;
             
@@ -504,105 +506,85 @@ void InterpretZmqMessage(Socket &pSocket, string& compArray[]) {
          InformPullClient(pSocket, ret); 
          break;
          
-      
-      case 13:
-      
-         ret = "PROFIT"; 
-         ArrayResize(retCount,ArraySize(symbol));
+         case 13: 
+         ret = time_str; 
+         
+         ArrayResize(retStr,ArraySize(symbol));
          
          if(ArraySize(compArray) > 1) 
             for(int i=0;i<ArraySize(symbol);i++){
-               retCount[i]=CountProfit(symbol[i],magic_number);
-               ret = ret + "|" + retCount[i];
-              // Print("Count is ",ret,"\nsymbol is ",symbol[i]);
-         }
-         //Print(ret);
-      
-         InformPullClient(pSocket, ret);
-         break;
-         
-      case 14:
-      
-         ret = "MAGIC_NUMBER";
-         
-         mag_nums = GetMagicNumbers();         
-         ret = ret + mag_nums;
-         
-         InformPullClient(pSocket, ret);
+              // retStr[i]=GetBidAsk(symbol[i]);
                
-         break;
-                     
-      
-   
-      case 15:
-      
-         ret = "PROFIT"; 
-         ArrayResize(retCount,ArraySize(magNumRead));
-         
-         if(ArraySize(compArray) > 1) 
-            for(int i=0;i<ArraySize(magNumRead);i++){
-               profitRead = GetProfit2(magNumRead[i]);
-               ret = ret + "|" + profitRead;
-              // Print("Count is ",ret,"\nsymbol is ",symbol[i]);
-         }
-         //Print(ret);
-      
-         InformPullClient(pSocket, ret);
-         break;
-   
-  // Print(ret);
-  
-      case 16:
-         
-        err_cd = CloseByMagicNumber( magic_number );
-         
-         ret = StringFormat("%d", err_cd);
-         //InformPullClient(pSocket, ret);
-         
-         break;
-  
-      case 17:
-      
-         ret = "SYMBOLS"; 
-         
-         //ArrayResize(retCount,ArraySize(magNumRead));
-         
-         //PrintFormat("The first magic number is %d and the size of array is %d", magNumRead[0], ArraySize(magNumRead) );
-         if(ArraySize(compArray) > 1) 
-            for(int i=0;i<ArraySize(magNumRead);i++){
-               //PrintFormat("Magic number is %d", magNumRead[i]);
-                ret = ret + "|" + GetSymbolByMagic(magNumRead[i]);
-            }         
-         
-         //PrintFormat("Symbols retrieved are : %s ", ret);
-                  
-         InformPullClient(pSocket, ret);
+               int masterSpread = MathPow(10,5)*(Master_Ask - Master_Bid);
+               int slaveSpread = MathPow(10,5)*(Slave_Ask-Slave_Bid);
                
+               if (masterSlave == "MASTER"){               
+                  retStr[i] = StringFormat("%f|%f|%f|%f", Master_Bid, Master_Ask, masterSpread, 5);
+               }
+               else if (masterSlave == "SLAVE"){
+                  retStr[i] = StringFormat("%f|%f|%f|%f", Slave_Bid, Slave_Ask, slaveSpread, 5);
+               }
+               ret = ret + "|" + retStr[i];
+               
+             }
+         
+         //Print(ret);
+         InformPullClient(pSocket, ret); 
          break;
          
-       case 18:
+         case 14:
             ret = "";
            
             serverTime = TimeCurrent();
            
-            last_openOrderTime = get_lastTimeByMagic(magic_number);
-            ret = TimeToString(last_openOrderTime, TIME_DATE|TIME_SECONDS) + "|" + TimeToString(serverTime, TIME_DATE|TIME_SECONDS);
-            InformPullClient(pSocket, ret);
-                        
-            break; 
-        
-        case 19:
-            ret = "";
-           
-            serverTime = TimeCurrent();
-           
-            last_openOrderTime = get_lastTimeBySymbol(symbolsRead);
+            last_openOrderTime = get_lastTimeByComment(symbol[0], orderComment);
             ret = TimeToString(last_openOrderTime, TIME_DATE|TIME_SECONDS) + "|" + TimeToString(serverTime, TIME_DATE|TIME_SECONDS);
             InformPullClient(pSocket, ret);
                         
             break;
+            
+         case 15: 
+            ret = time_str; 
+            ret = ret + "|" + GetBidAsk(fx_symbol);
+                       
+            Print(ret);
+            InformPullClient(pSocket, ret); 
+            break;
+            
+         case 16:
          
-  
+            ret = ""; 
+            ret = CountTradesByComment(fx_symbol, orderComment, POSITION_TYPE_BUY);
+            ret = ret + "|" + CountTradesByComment(fx_symbol, orderComment, POSITION_TYPE_SELL);
+            
+            InformPullClient(pSocket, ret); 
+            break;
+            
+         case 17:    
+            ret = CountTotalByComment(orderComment);
+            
+            InformPullClient(pSocket, ret); 
+            break;
+            
+         case 18:    
+            ret = getDetails(trade_ticket);
+            
+            InformPullClient(pSocket, ret); 
+            break;
+            
+         case 19:    
+            ret = getMasterDetails(fx_symbol);
+            
+            InformPullClient(pSocket, ret); 
+            break;
+            
+         case 99:
+            ret = "404|";
+            ret = ret + StringFormat("keyword '%s' not reconized",keyword);
+            
+            InformPullClient(pSocket, ret); 
+            break;
+         
        default: 
             break;   
          
@@ -612,7 +594,49 @@ void InterpretZmqMessage(Socket &pSocket, string& compArray[]) {
 //----------------------------------------------------------
 // This function is to enable list of symbols in marketwatch
 //----------------------------------------------------------
-bool get_Symbols(string& listSymbols[]){
+bool get_Symbols(string &listSymbols[]){
+
+   bool success = false;
+   string symbolName;
+     
+   int totalSymbol= SymbolsTotal(true);
+  // Print(totalSymbol);
+   
+   //Print("Here --------------> 456");
+   
+   for(int i=totalSymbol-1 ; i >= 0 ; i--){
+      symbolName = SymbolName(i, true);
+      //Print(symbolName);
+      SymbolSelect(symbolName, false);
+      
+   }     
+
+   int listsize = ArraySize(listSymbols);
+   for(int j=0; j<listsize ; j++){
+       SymbolSelect(listSymbols[j], true);               
+       //Print(listSymbols[j], j);
+       success = true;
+   }  
+   
+   return success;
+}
+
+//----------------------------------------------------------
+void setClearFxSymbols(){
+
+   bool success = false;
+   string symbolName="";
+     
+   int totalSymbol= SymbolsTotal(true);
+   
+   for(int i=totalSymbol-1 ; i >= 0 ; i--){
+      symbolName = SymbolName(i, true);
+      SymbolSelect(symbolName, false);      
+   }     
+
+}
+
+bool setFxSymbols(string& listSymbols[]){
 
    bool success = false;
    string symbolName;
@@ -822,6 +846,7 @@ void InformPullClient(Socket& pushSocket, string message) {
 
    ZmqMsg pushReply(StringFormat("%s", message));
    pushSocket.send(pushReply,true);
+  // pushSocket.send(pushReply, false);
    //pushSocket.send(pushReply,true,false);
    
 }
@@ -854,6 +879,112 @@ string CountTrades(string symbol, int magic_number)
             return(StringFormat("%d",count));
 }
 
+//+------------------------------------------------------------------+
+//|   This function is to Count number of trades                                                               |e
+//+------------------------------------------------------------------+
+string CountTradesByComment(string symbol, string orderComment, ENUM_POSITION_TYPE orderType)
+{
+            int count=0;
+            int trade;
+            //PrintFormat("symbol: %s , orderComment: %s",symbol, orderComment);
+                        
+            for(trade=PositionsTotal()-1;trade>=0;trade--)
+              {
+               PositionSelectByTicket(PositionGetTicket(trade));
+               
+              // PrintFormat("count Trade: Ticket # is %d for trade %d ", PositionGetTicket(trade), trade);
+               
+               if( PositionGetString(POSITION_SYMBOL)!=symbol || 
+                  PositionGetInteger(POSITION_TYPE) != orderType ||
+                  PositionGetString(POSITION_COMMENT)!= orderComment) continue;
+               
+               if( PositionGetString(POSITION_SYMBOL)==symbol &&
+                  PositionGetInteger(POSITION_TYPE) == orderType &&
+                  PositionGetString(POSITION_COMMENT)== orderComment) count++;
+               
+              }//for
+            return(StringFormat("%d",count));
+}
+
+
+//+------------------------------------------------------------------+
+//|   This function is to Count number of trades                                                               |e
+//+------------------------------------------------------------------+
+string CountTotalByComment(string orderComment)
+{
+            int count=0;
+            string ticket="", ret="";
+            
+            for(int trade=0 ; trade < PositionsTotal(); trade++)
+              {
+               PositionSelectByTicket(PositionGetTicket(trade));
+               
+               if( PositionGetString(POSITION_COMMENT)!= orderComment) continue;
+               
+               if( PositionGetString(POSITION_COMMENT)== orderComment) {
+                  count++;
+                  ticket = ticket +"|"+ IntegerToString(PositionGetTicket(trade));
+                  }
+               
+              }//for
+              
+              ret = StringFormat("%d",count) + ticket;
+            return(ret);
+}
+
+//+------------------------------------------------------------------+
+//|   This function is to Count number of trades                                                               |e
+//+------------------------------------------------------------------+
+string getDetails(int ticket)
+{      
+            
+            int count=0;
+            string ret="";
+            
+            for(int trade=0; trade < PositionsTotal(); trade++)
+              {
+               PositionSelectByTicket(PositionGetTicket(trade));
+               
+               if(PositionGetTicket(trade) != ticket) continue;
+               
+               else if(PositionGetTicket(trade) == ticket){
+                  ret = trade + "|" +
+                        PositionGetString(POSITION_SYMBOL) + "|" +
+                        DoubleToString(SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_BID)) + "|" +
+                        DoubleToString(SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_ASK)) + "|" +
+                        IntegerToString(SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_SPREAD))  + "|" +
+                        IntegerToString(SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS))  + "|" +
+                        TimeToString(PositionGetInteger(POSITION_TIME), TIME_DATE|TIME_SECONDS)  + "|" +
+                        TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "|" +
+                        PositionGetInteger(POSITION_TYPE) + "|" +
+                        PositionGetDouble(POSITION_PROFIT) + "|" +
+                        PositionGetDouble(POSITION_PRICE_OPEN);
+                        
+                   break;
+               }
+             
+                  
+                   
+              }//for
+              
+              if(ret=="") ret = "404|ticket not valid";
+              
+              
+            return(ret);
+}
+
+string getMasterDetails(string symbol)
+{      
+            int count=0;
+            string ret="";
+            
+             ret = DoubleToString(SymbolInfoDouble(symbol, SYMBOL_BID)) + "|" +
+                  DoubleToString(SymbolInfoDouble(symbol, SYMBOL_ASK)) + "|" +
+                  IntegerToString(SymbolInfoInteger(symbol, SYMBOL_SPREAD))  + "|" +
+                  IntegerToString(SymbolInfoInteger(symbol, SYMBOL_DIGITS)) ;
+        
+            return(ret);
+}
 
 string GetMagicNumbers()
 {
@@ -1268,4 +1399,29 @@ string Get_OHLC(string symbol, ENUM_TIMEFRAMES tf, int shift) {
    ret_string = StringFormat("%f|%f|%f|%f", open, high, low, close);
    //Print(ret_string);
    return(ret_string);
+}
+
+//+------------------------------------------------------------------+
+//|  this subroutine is to find the last datetime for the open position                                                          |
+//+------------------------------------------------------------------+
+datetime get_lastTimeByComment(string symbol, string orderComment){
+
+     
+      datetime oldOrderTime=NULL, orderTime = NULL;
+      int cnt, oldticketnumber=0, ticketnumber;
+      int order_total = OrdersTotal();
+      int order_chk, trade=0;     
+      
+      for(trade=PositionsTotal()-1;trade>=0;trade--){
+         PositionSelectByTicket(PositionGetTicket(trade));
+         
+          if(PositionGetString(POSITION_SYMBOL)!= symbol || PositionGetString(POSITION_COMMENT)!= orderComment) continue;
+          
+          if(PositionGetString(POSITION_SYMBOL)== symbol || PositionGetString(POSITION_COMMENT)== orderComment) {
+              orderTime = PositionGetInteger(POSITION_TIME) ; 
+              break;
+          }                 
+      }          
+           
+   return(orderTime);
 }

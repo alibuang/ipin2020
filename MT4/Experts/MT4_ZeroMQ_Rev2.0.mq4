@@ -13,7 +13,7 @@
 
 string PROJECT_NAME = "Ali ZMQ";
 extern string ZEROMQ_PROTOCOL = "tcp";
-extern string HOSTNAME = "*";
+extern string HOSTNAME = "127.0.0.102";
 extern int REP_PORT = 5555;
 extern int PUSH_PORT = 5556;
 extern int MILLISECOND_TIMER = 1;  // 1 millisecond
@@ -133,7 +133,7 @@ ZmqMsg MessageHandler(ZmqMsg &request) {
       request.getData(data);
       
       string dataStr = CharArrayToString(data);
-     // Print(dataStr);
+     // PrintFormat("Request received from python : %s",dataStr);
            
       // Process data
       ParseZmqMessage(dataStr, components);
@@ -144,10 +144,10 @@ ZmqMsg MessageHandler(ZmqMsg &request) {
       InterpretZmqMessage(pushSocket, components);
       
       // Construct response
-      data2send = StringSubstr(dataStr,0,27);
-      ZmqMsg ret(StringFormat("[SERVER]: %s", data2send));
+      //data2send = StringSubstr(dataStr,0,27);
+     // ZmqMsg ret(StringFormat("[SERVER]: %s", data2send));
      
-      reply = ret;
+      //reply = ret;
       
    }
    else {
@@ -162,11 +162,12 @@ void InterpretZmqMessage(Socket &pSocket, string& compArray[]) {
 
    //Print("ZMQ: Interpreting Message..");
    //Print("Okay 5");   
-   string broker="", comments="", symbol[],retStr[], masterSlave="", orderComment="";
+   string broker="", comments="", symbol[],retStr[], masterSlave="", orderComment="", fx_symbol="", keyword="";
    int switch_action = 0, magic_number = 0,  order_type = 9, err_cd=0, stop_loss=0, take_profit=0, slip=0, retCount[], timeframe, shift;
    double open_price=0.0, lot=0.0;
    datetime timestamp = TimeLocal(), tm;
    string time_str = TimeToStr(timestamp,TIME_DATE|TIME_SECONDS);
+   int trade_ticket=0;
    
    if(compArray[0] == "TRADE" && compArray[1] == "OPEN"){
       switch_action = 1;
@@ -277,6 +278,35 @@ void InterpretZmqMessage(Socket &pSocket, string& compArray[]) {
          ArrayResize(symbol,1);
          symbol[0] = compArray[1];
     }
+    
+      else if(compArray[0] == "RATE_FX"){
+      
+         switch_action = 15;
+         fx_symbol = compArray[1];
+      
+      }
+      else if(compArray[0] == "COUNT_TRADE"){
+         switch_action = 16;
+         fx_symbol = compArray[1];
+         orderComment = compArray[2];
+      
+      }
+      else if(compArray[0] == "TOTAL_COUNT"){
+         switch_action = 17;
+         orderComment = compArray[1];
+     }
+     else if(compArray[0] == "DETAILS"){
+         switch_action = 18;
+         trade_ticket = compArray[1];
+     }
+     else if(compArray[0] == "DETAILS_MASTER"){
+         switch_action = 19;
+         fx_symbol = compArray[1];
+     }
+     else {
+         switch_action = 99;
+         keyword = compArray[0];
+     }
    
    string ret = "";
    int ticket = -1;
@@ -507,6 +537,48 @@ void InterpretZmqMessage(Socket &pSocket, string& compArray[]) {
             InformPullClient(pSocket, ret);
                         
             break;
+            
+         case 15: 
+            ret = time_str; 
+            ret = ret + "|" + GetBidAsk(fx_symbol);
+                       
+            Print(ret);
+            InformPullClient(pSocket, ret); 
+            break;
+            
+         case 16:
+         
+            ret = ""; 
+            ret = CountTradesByComment(fx_symbol, orderComment, OP_BUY);
+            ret = ret + "|" + CountTradesByComment(fx_symbol, orderComment, OP_SELL);
+            
+            InformPullClient(pSocket, ret); 
+            break;
+            
+         case 17:    
+            ret = CountTotalByComment(orderComment);
+            
+            InformPullClient(pSocket, ret); 
+            break;
+            
+         case 18:    
+            ret = getDetails(trade_ticket);
+            
+            InformPullClient(pSocket, ret); 
+            break;
+            
+         case 19:    
+            ret = getMasterDetails(fx_symbol);
+            
+            InformPullClient(pSocket, ret); 
+            break;
+            
+         case 99:
+            ret = "404|";
+            ret = ret + StringFormat("keyword '%s' not reconized",keyword);
+            
+            InformPullClient(pSocket, ret); 
+            break;
                      
       default: 
          break;   
@@ -724,6 +796,109 @@ string CountTrades(string symbol, int magic_number)
               }//for
             return(StringFormat("%d",count));
 }
+
+//+------------------------------------------------------------------+
+//|   This function is to Count number of trades                                                               |
+//+------------------------------------------------------------------+
+string CountTradesByComment(string symbol, string orderComment, int orderType)
+{
+            int count=0;
+            int trade;
+            for(trade=OrdersTotal()-1;trade>=0;trade--)
+              {
+               int order_chk = OrderSelect(trade,SELECT_BY_POS,MODE_TRADES);
+               
+               if(OrderSymbol()!=symbol ||
+                  OrderType() != orderType ||
+                  OrderComment()!= orderComment) continue;
+                  
+                  
+               if(OrderSymbol()==symbol &&
+                  OrderType() == orderType &&
+                  OrderComment()== orderComment) count++;
+              }//for
+            return(StringFormat("%d",count));
+}
+
+//+------------------------------------------------------------------+
+//|   This function is to Count number of trades                                                               |
+//+------------------------------------------------------------------+
+string CountTotalByComment(string orderComment)
+{
+            int count=0;
+            string ticket="", ret="";
+           
+            for(int trade=0; trade < OrdersTotal(); trade++){
+            
+               int order_chk = OrderSelect(trade,SELECT_BY_POS,MODE_TRADES);
+               
+               if( OrderComment()!= orderComment ) continue;
+                  
+                  
+               if( OrderComment()== orderComment ){
+                  count++;
+                  ticket= ticket + "|" + IntegerToString(OrderTicket());
+                                 
+               } 
+              }//for
+              
+            ret = StringFormat("%d",count) + ticket;
+            return( ret );
+}
+
+
+//+------------------------------------------------------------------+
+//|   This function is to Count number of trades                                                               |
+//+------------------------------------------------------------------+
+string getDetails(int ticket)
+{
+            int count=0;
+            string ret="";
+           
+            for(int trade=0; trade < OrdersTotal(); trade++){
+            
+               int order_chk = OrderSelect(trade,SELECT_BY_POS,MODE_TRADES);
+               
+               if( OrderTicket() != ticket ) continue;
+               
+               if( OrderTicket() == ticket ){
+               
+                  ret = trade + "|" +
+                        OrderSymbol() + "|" +
+                        MarketInfo(OrderSymbol(), MODE_BID) + "|" +
+                        MarketInfo(OrderSymbol(), MODE_ASK) + "|" +
+                        MarketInfo(OrderSymbol(), MODE_SPREAD) + "|" +
+                        MarketInfo(OrderSymbol(), MODE_DIGITS) + "|" +
+                        OrderOpenTime() + "|" +
+                        TimeCurrent() + "|" +
+                        OrderType() + "|" +
+                        OrderProfit() + "|" +
+                        OrderOpenPrice();
+                   break;
+                    } 
+              }//for
+              
+            if(ret=="") ret = "404|ticket not valid";
+          
+            return( ret );
+}
+
+//+------------------------------------------------------------------+
+//|   This function is to Count number of trades                                                               |
+//+------------------------------------------------------------------+
+string getMasterDetails(string symbol)
+{
+            int count=0;
+            string ret="";
+           
+            ret = MarketInfo(OrderSymbol(), MODE_BID) + "|" +
+                  MarketInfo(OrderSymbol(), MODE_ASK) + "|" +
+                  MarketInfo(OrderSymbol(), MODE_SPREAD) + "|" +
+                  MarketInfo(OrderSymbol(), MODE_DIGITS);
+                  
+            return( ret );
+}
+
 
 //+----------------------------------------------------------------
 // This function is to execute buy command

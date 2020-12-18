@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'Setting_rev3.ui'
+# Form implementation generated from reading ui file 'Setting_rev2.ui'
 #
 # Created by: PyQt5 UI code generator 5.9.2
 #
@@ -352,7 +352,7 @@ class Ui_SettingWindow(object):
         self.label_31.setFont(font)
         self.label_31.setObjectName("label_31")
         self.formLayoutWidget_3 = QtWidgets.QWidget(self.centralwidget)
-        self.formLayoutWidget_3.setGeometry(QtCore.QRect(350, 70, 311, 247))
+        self.formLayoutWidget_3.setGeometry(QtCore.QRect(350, 70, 311, 241))
         self.formLayoutWidget_3.setObjectName("formLayoutWidget_3")
         self.formLayout_3 = QtWidgets.QFormLayout(self.formLayoutWidget_3)
         self.formLayout_3.setContentsMargins(0, 0, 0, 0)
@@ -471,22 +471,10 @@ class Ui_SettingWindow(object):
         font.setPointSize(12)
         self.WeekendOff.setFont(font)
         self.WeekendOff.setObjectName("WeekendOff")
-        self.formLayout_3.setWidget(10, QtWidgets.QFormLayout.LabelRole, self.WeekendOff)
+        self.formLayout_3.setWidget(9, QtWidgets.QFormLayout.LabelRole, self.WeekendOff)
         self.weekendOFFCheckBox = QtWidgets.QCheckBox(self.formLayoutWidget_3)
         self.weekendOFFCheckBox.setObjectName("weekendOFFCheckBox")
-        self.formLayout_3.setWidget(10, QtWidgets.QFormLayout.FieldRole, self.weekendOFFCheckBox)
-        self.profitInPIPLabel = QtWidgets.QLabel(self.formLayoutWidget_3)
-        font = QtGui.QFont()
-        font.setPointSize(12)
-        self.profitInPIPLabel.setFont(font)
-        self.profitInPIPLabel.setObjectName("profitInPIPLabel")
-        self.formLayout_3.setWidget(9, QtWidgets.QFormLayout.LabelRole, self.profitInPIPLabel)
-        self.profitInPIP = QtWidgets.QLineEdit(self.formLayoutWidget_3)
-        font = QtGui.QFont()
-        font.setPointSize(11)
-        self.profitInPIP.setFont(font)
-        self.profitInPIP.setObjectName("profitInPIP")
-        self.formLayout_3.setWidget(9, QtWidgets.QFormLayout.FieldRole, self.profitInPIP)
+        self.formLayout_3.setWidget(9, QtWidgets.QFormLayout.FieldRole, self.weekendOFFCheckBox)
         self.horizontalLayoutWidget = QtWidgets.QWidget(self.centralwidget)
         self.horizontalLayoutWidget.setGeometry(QtCore.QRect(350, 430, 411, 81))
         self.horizontalLayoutWidget.setObjectName("horizontalLayoutWidget")
@@ -594,7 +582,6 @@ class Ui_SettingWindow(object):
         self.label_40.setText(_translate("SettingWindow", "Scalping Rule"))
         self.label_41.setText(_translate("SettingWindow", "Next Open Duration"))
         self.WeekendOff.setText(_translate("SettingWindow", "weekend OFF"))
-        self.profitInPIPLabel.setText(_translate("SettingWindow", "Profit in PIP"))
         self.pbSendTeleg.setText(_translate("SettingWindow", "TELEGRAM"))
         self.pbSave.setText(_translate("SettingWindow", "SAVE"))
         self.pbExit.setText(_translate("SettingWindow", "EXIT"))
